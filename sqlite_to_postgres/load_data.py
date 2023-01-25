@@ -1,20 +1,52 @@
+import os
 import sqlite3
 
 import psycopg2
+from dotenv import load_dotenv
+from postgres_saver import PostgresSaver
 from psycopg2.extensions import connection as _connection
 from psycopg2.extras import DictCursor
+from sqlite_extractor import SQLiteExtractor
+from tables_dataclasses import (FilmWork, Genre, GenreFilmWork, Person,
+                                PersonFilmWork)
 
 
-def load_from_sqlite(connection: sqlite3.Connection, pg_conn: _connection):
+def load_from_sqlite(
+    connection: sqlite3.Connection, pg_conn: _connection, size: int
+):
     """Основной метод загрузки данных из SQLite в Postgres"""
-    # postgres_saver = PostgresSaver(pg_conn)
-    # sqlite_extractor = SQLiteExtractor(connection)
+    postgres_saver = PostgresSaver(pg_conn, "content")
+    sqlite_extractor = SQLiteExtractor(connection)
+    postgres_saver.truncate_all_tables(tables)  # ОСТОРОЖНО! Очищает базу.
+    for table in tables.keys():
+        select = sqlite_extractor.select_data_from_table(table)
+        while table_data := (
+            sqlite_extractor.fetchmany_from_request(
+                request=select, size=size, dataclass=tables[table]
+            )
+        ):
+            postgres_saver.insert_data(table, table_data)
+    print("Данные были перегружены с SQLite в Postgres")
 
-    # data = sqlite_extractor.extract_movies()
-    # postgres_saver.save_all_data(data)
 
-
-if __name__ == '__main__':
-    dsl = {'dbname': 'movies_database', 'user': 'app', 'password': '123qwe', 'host': '127.0.0.1', 'port': 5432}
-    with sqlite3.connect('db.sqlite') as sqlite_conn, psycopg2.connect(**dsl, cursor_factory=DictCursor) as pg_conn:
-        load_from_sqlite(sqlite_conn, pg_conn)
+if __name__ == "__main__":
+    load_dotenv()
+    tables = {}
+    tables["genre"] = Genre
+    tables["person"] = Person
+    tables["film_work"] = FilmWork
+    tables["genre_film_work"] = GenreFilmWork
+    tables["person_film_work"] = PersonFilmWork
+    dsl = {
+        "dbname": os.environ.get("DB_NAME"),
+        "user": os.environ.get("DB_USER"),
+        "password": os.environ.get("DB_PASSWORD"),
+        "host": "127.0.0.1",
+        "port": 5432,
+    }
+    sqlite_path = "new_admin_panel_sprint_1/sqlite_to_postgres/db.sqlite"
+    size = int(os.environ.get("SIZE", default=10))
+    with sqlite3.connect(sqlite_path) as sqlite_conn, psycopg2.connect(
+        **dsl, cursor_factory=DictCursor
+    ) as pg_conn:
+        load_from_sqlite(sqlite_conn, pg_conn, size)
