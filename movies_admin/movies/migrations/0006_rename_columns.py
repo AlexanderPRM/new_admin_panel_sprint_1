@@ -6,7 +6,7 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("movies", "0005_auto_20230124_0804"),
+        ("movies", "0005_rename_columns"),
     ]
 
     operations = [

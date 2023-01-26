@@ -1,5 +1,6 @@
 import os
 import sqlite3
+import logging
 
 import psycopg2
 from dotenv import load_dotenv
@@ -9,6 +10,19 @@ from psycopg2.extras import DictCursor
 from sqlite_extractor import SQLiteExtractor
 from tables_dataclasses import (FilmWork, Genre, GenreFilmWork, Person,
                                 PersonFilmWork)
+from contextlib import contextmanager
+
+
+@contextmanager
+def open_db(file_name: str):
+    conn = sqlite3.connect(file_name)
+    try:
+        logging.info("Подключено.")
+        yield conn
+    finally:
+        logging.info("Соединение закрыто.")
+        conn.commit()
+        conn.close()
 
 
 def load_from_sqlite(
@@ -46,7 +60,7 @@ if __name__ == "__main__":
     }
     sqlite_path = "new_admin_panel_sprint_1/sqlite_to_postgres/db.sqlite"
     size = int(os.environ.get("SIZE", default=10))
-    with sqlite3.connect(sqlite_path) as sqlite_conn, psycopg2.connect(
+    with open_db(sqlite_path) as sqlite_conn, psycopg2.connect(
         **dsl, cursor_factory=DictCursor
     ) as pg_conn:
         load_from_sqlite(sqlite_conn, pg_conn, size)
